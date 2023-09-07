@@ -7,6 +7,7 @@ import privileges from '../privileges';
 import websockets, { server as websocketServer } from './index';
 import { getDictionary as getAdminSearchDict } from '../admin/search';
 
+import promisify from '../promisify';
 import { buildAll } from '../meta/build';
 
 // Convert the CommonJS imports to ES6 imports
@@ -104,8 +105,26 @@ interface MetaConfig {
     defaultLang?: string;
 }
 
+interface MySocket {
+    uid: number;
+    // other properties...
+}
+
+interface Auth {
+    deleteAllSessions(callback: CallbackType): void;
+}
+
+interface User {
+    auth: Auth;
+    isAdministrator(uid: number): Promise<boolean>;
+    getSettings(uid: number): Promise<UserSettings>;
+}
+
+declare const user: User;
+
+
 SocketAdmin.before = async (socket: ISocket, method: string) => {
-    const isAdmin = await user.isAdministrator(socket.uid) as boolean;
+    const isAdmin = await user.isAdministrator(socket.uid);
     if (isAdmin) {
         return;
     }
@@ -165,41 +184,53 @@ SocketAdmin.fireEvent = (socket: any, data: { name: string, payload?: any }, cal
 type CallbackWithError = (err?: any) => void;
 
 SocketAdmin.deleteEvents = (socket: unknown, eids: number[], callback: CallbackWithError) => {
-    events.deleteEvents(eids, (err: any) => {
-        if (err) {
-            // Handle the error or pass it to the callback
-            return callback(err);
-        }
-        callback();
-    });
+    // Assuming events.deleteEvents returns a promise
+    events.deleteEvents(eids)
+        .then(() => {
+            callback(); // Successfully deleted, so invoke the callback with no error
+        })
+        .catch((err: any) => {
+            callback(err); // There was an error, pass it to the callback
+        });
 };
 
 SocketAdmin.deleteAllEvents = (socket: unknown, data: unknown, callback: CallbackWithError) => {
-    events.deleteAll((err: any) => {
-        if (err) {
-            // Handle the error or pass it to the callback
-            return callback(err);
-        }
-        callback();
-    });
+    // Assuming events.deleteAll returns a promise
+    events.deleteAll()
+        .then(() => {
+            callback(); // Successfully deleted, so invoke the callback with no error
+        })
+        .catch((err: any) => {
+            callback(err); // There was an error, pass it to the callback
+        });
 };
 
 SocketAdmin.getSearchDict = async (socket: unknown) => {
-    const settings = (await user.getSettings((socket as { uid: number }).uid)) as UserSettings;
+    // The next line calls a function in a module that has not been updated to TS yet
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+    const settings = (await user.getSettings((socket as { uid: number }).uid));
     const lang = settings.userLang || (meta.config as MetaConfig).defaultLang || 'en-GB';
+    // The next line calls a function in a module that has not been updated to TS yet
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return
     return await getAdminSearchDict(lang);
 };
 
-SocketAdmin.deleteAllSessions = (socket: any, data: any, callback: Function) => {
+type CallbackType = (err?: Error) => void;
+
+SocketAdmin.deleteAllSessions = (socket: MySocket, data: unknown, callback: CallbackType) => {
     user.auth.deleteAllSessions(callback);
 };
 
-SocketAdmin.reloadAllSessions = (socket: any, data: any, callback: Function) => {
+SocketAdmin.reloadAllSessions = (socket: MySocket, data: unknown, callback: CallbackType) => {
+    // The next line calls a function in a module that has not been updated to TS yet
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
     websockets.in(`uid_${socket.uid}`).emit('event:livereload');
     callback();
 };
 
-SocketAdmin.getServerTime = (socket: any, data: any, callback: Function) => {
+type ServerTimeCallback = (error: Error | null, data: { timestamp: number; offset: number }) => void;
+
+SocketAdmin.getServerTime = (socket: unknown, data: unknown, callback: ServerTimeCallback) => {
     const now = new Date();
     callback(null, {
         timestamp: now.getTime(),
@@ -207,6 +238,8 @@ SocketAdmin.getServerTime = (socket: any, data: any, callback: Function) => {
     });
 };
 
-import promisify from '../promisify';
 promisify(SocketAdmin);
+
 export default SocketAdmin;
+
+//  source of some of these changes: chatGPT

@@ -37,15 +37,15 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const winston_1 = __importDefault(require("winston"));
 const meta_1 = __importDefault(require("../meta"));
-const user_1 = __importDefault(require("../user"));
 const events_1 = __importDefault(require("../events"));
 const database_1 = __importDefault(require("../database"));
 const privileges_1 = __importDefault(require("../privileges"));
 const index_1 = __importStar(require("./index"));
 const search_1 = require("../admin/search");
+const promisify_1 = __importDefault(require("../promisify"));
 const build_1 = require("../meta/build");
 // Convert the CommonJS imports to ES6 imports
-const user_2 = __importDefault(require("./admin/user"));
+const user_1 = __importDefault(require("./admin/user"));
 const categories_1 = __importDefault(require("./admin/categories"));
 const settings_1 = __importDefault(require("./admin/settings"));
 const tags_1 = __importDefault(require("./admin/tags"));
@@ -65,7 +65,7 @@ const digest_1 = __importDefault(require("./admin/digest"));
 const cache_1 = __importDefault(require("./admin/cache"));
 // Define the SocketAdmin object using the imported modules and the ISocketAdmin type
 const SocketAdmin = {
-    adminUser: user_2.default,
+    adminUser: user_1.default,
     categories: categories_1.default,
     settings: settings_1.default,
     tags: tags_1.default,
@@ -85,7 +85,7 @@ const SocketAdmin = {
     cache: cache_1.default,
 };
 SocketAdmin.before = (socket, method) => __awaiter(void 0, void 0, void 0, function* () {
-    const isAdmin = yield user_1.default.isAdministrator(socket.uid);
+    const isAdmin = yield user.isAdministrator(socket.uid);
     if (isAdmin) {
         return;
     }
@@ -137,32 +137,40 @@ SocketAdmin.fireEvent = (socket, data, callback) => {
     callback();
 };
 SocketAdmin.deleteEvents = (socket, eids, callback) => {
-    events_1.default.deleteEvents(eids, (err) => {
-        if (err) {
-            // Handle the error or pass it to the callback
-            return callback(err);
-        }
-        callback();
+    // Assuming events.deleteEvents returns a promise
+    events_1.default.deleteEvents(eids)
+        .then(() => {
+        callback(); // Successfully deleted, so invoke the callback with no error
+    })
+        .catch((err) => {
+        callback(err); // There was an error, pass it to the callback
     });
 };
 SocketAdmin.deleteAllEvents = (socket, data, callback) => {
-    events_1.default.deleteAll((err) => {
-        if (err) {
-            // Handle the error or pass it to the callback
-            return callback(err);
-        }
-        callback();
+    // Assuming events.deleteAll returns a promise
+    events_1.default.deleteAll()
+        .then(() => {
+        callback(); // Successfully deleted, so invoke the callback with no error
+    })
+        .catch((err) => {
+        callback(err); // There was an error, pass it to the callback
     });
 };
 SocketAdmin.getSearchDict = (socket) => __awaiter(void 0, void 0, void 0, function* () {
-    const settings = (yield user_1.default.getSettings(socket.uid));
+    // The next line calls a function in a module that has not been updated to TS yet
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+    const settings = (yield user.getSettings(socket.uid));
     const lang = settings.userLang || meta_1.default.config.defaultLang || 'en-GB';
+    // The next line calls a function in a module that has not been updated to TS yet
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return
     return yield (0, search_1.getDictionary)(lang);
 });
 SocketAdmin.deleteAllSessions = (socket, data, callback) => {
-    user_1.default.auth.deleteAllSessions(callback);
+    user.auth.deleteAllSessions(callback);
 };
 SocketAdmin.reloadAllSessions = (socket, data, callback) => {
+    // The next line calls a function in a module that has not been updated to TS yet
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
     index_1.default.in(`uid_${socket.uid}`).emit('event:livereload');
     callback();
 };
@@ -173,6 +181,6 @@ SocketAdmin.getServerTime = (socket, data, callback) => {
         offset: now.getTimezoneOffset(),
     });
 };
-const promisify_1 = __importDefault(require("../promisify"));
 (0, promisify_1.default)(SocketAdmin);
 exports.default = SocketAdmin;
+//  source of some of these changes: chatGPT
