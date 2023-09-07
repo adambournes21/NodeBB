@@ -8,7 +8,7 @@ import websockets, { server as websocketServer } from './index';
 import { getDictionary as getAdminSearchDict } from '../admin/search';
 
 // Convert the CommonJS imports to ES6 imports
-import user from './admin/user';
+import adminUser from './admin/user';
 import categories from './admin/categories';
 import settings from './admin/settings';
 import tags from './admin/tags';
@@ -20,7 +20,6 @@ import themes from './admin/themes';
 import plugins from './admin/plugins';
 import widgets from './admin/widgets';
 import config from './admin/config';
-// I noticed you imported 'settings' twice, so I'm removing one of them.
 import email from './admin/email';
 import analytics from './admin/analytics';
 import logs from './admin/logs';
@@ -28,9 +27,44 @@ import errors from './admin/errors';
 import digest from './admin/digest';
 import cache from './admin/cache';
 
-// Define the SocketAdmin object using the imported modules
-export const SocketAdmin = {
-    user,
+// Define the ISocketAdmin interface
+interface ISocketAdmin {
+    adminUser?: any;
+    categories?: any;
+    settings?: any;
+    tags?: any;
+    rewards?: any;
+    navigation?: any;
+    rooms?: any;
+    social?: any;
+    themes?: any;
+    plugins?: any;
+    widgets?: any;
+    config?: any;
+    email?: any;
+    analytics?: any;
+    logs?: any;
+    errors?: any;
+    digest?: any;
+    cache?: any;
+
+    before?(socket: any, method: string): Promise<void>;
+    restart?(socket: any): Promise<void>;
+
+    reload?(socket: any): Promise<void>;
+    fireEvent?(socket: any, data: { name: string, payload?: any }, callback: (...args: any[]) => any): void;
+    deleteEvents?(socket: any, eids: number[], callback: (err: Error | null, result?: any) => void): void;
+    deleteAllEvents?(socket: any, data: any, callback: (err: Error | null, result?: any) => void): void;
+    getSearchDict?(socket: any): Promise<any>;
+    deleteAllSessions?(socket: any, data: any, callback: (err: Error | null, result?: any) => void): void;
+    reloadAllSessions?(socket: any, data: any, callback: (err: Error | null, result?: any) => void): void;
+    getServerTime?(socket: any, data: any, callback: (err: Error | null, result?: any) => void): void;
+    // ... Add other methods here if needed
+}
+
+// Define the SocketAdmin object using the imported modules and the ISocketAdmin type
+const SocketAdmin: ISocketAdmin = {
+    adminUser,
     categories,
     settings,
     tags,
@@ -47,21 +81,29 @@ export const SocketAdmin = {
     logs,
     errors,
     digest,
-    cache
+    cache,
 };
 
+interface ISocket {
+    uid: number;
+    ip: string;
+    [key: string]: any;  // Use this line to allow additional properties, but try to avoid `any` where possible.
+}
 
-SocketAdmin.before = async (socket: any, method: string) => {
+SocketAdmin.before = async (socket: ISocket, method: string) => {
     const isAdmin = await user.isAdministrator(socket.uid);
     if (isAdmin) {
         return;
     }
 
-    // Check admin privileges mapping (if not in mapping, deny access)
-    const privilegeSet = privileges.admin.socketMap.hasOwnProperty(method) ? privileges.admin.socketMap[method].split(';') : [];
+    const privilegeSet = privileges.admin.socketMap.hasOwnProperty(method) 
+        ? (privileges.admin.socketMap[method] as string).split(';')  // assert as string
+        : [];
+
     const hasPrivilege = (await Promise.all(privilegeSet.map(
         async privilege => privileges.admin.can(privilege, socket.uid)
     ))).some(Boolean);
+
     if (privilegeSet.length && hasPrivilege) {
         return;
     }
@@ -70,12 +112,12 @@ SocketAdmin.before = async (socket: any, method: string) => {
     throw new Error('[[error:no-privileges]]');
 };
 
-SocketAdmin.restart = async function (socket: any) {
+SocketAdmin.restart = async function (socket: ISocket) {
     await logRestart(socket);
     meta.restart();
 };
 
-async function logRestart(socket: any) {
+async function logRestart(socket: ISocket) {
     await events.log({
         type: 'restart',
         uid: socket.uid,
@@ -138,3 +180,4 @@ SocketAdmin.getServerTime = (socket: any, data: any, callback: Function) => {
 
 import promisify from '../promisify';
 promisify(SocketAdmin);
+export default SocketAdmin;

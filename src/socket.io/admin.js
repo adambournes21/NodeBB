@@ -35,7 +35,6 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.SocketAdmin = void 0;
 const winston_1 = __importDefault(require("winston"));
 const meta_1 = __importDefault(require("../meta"));
 const user_1 = __importDefault(require("../user"));
@@ -44,6 +43,8 @@ const database_1 = __importDefault(require("../database"));
 const privileges_1 = __importDefault(require("../privileges"));
 const index_1 = __importStar(require("./index"));
 const search_1 = require("../admin/search");
+// Convert the CommonJS imports to ES6 imports
+const user_2 = __importDefault(require("./admin/user"));
 const categories_1 = __importDefault(require("./admin/categories"));
 const settings_1 = __importDefault(require("./admin/settings"));
 const tags_1 = __importDefault(require("./admin/tags"));
@@ -55,16 +56,15 @@ const themes_1 = __importDefault(require("./admin/themes"));
 const plugins_1 = __importDefault(require("./admin/plugins"));
 const widgets_1 = __importDefault(require("./admin/widgets"));
 const config_1 = __importDefault(require("./admin/config"));
-// I noticed you imported 'settings' twice, so I'm removing one of them.
 const email_1 = __importDefault(require("./admin/email"));
 const analytics_1 = __importDefault(require("./admin/analytics"));
 const logs_1 = __importDefault(require("./admin/logs"));
 const errors_1 = __importDefault(require("./admin/errors"));
 const digest_1 = __importDefault(require("./admin/digest"));
 const cache_1 = __importDefault(require("./admin/cache"));
-// Define the SocketAdmin object using the imported modules
-exports.SocketAdmin = {
-    user: user_1.default,
+// Define the SocketAdmin object using the imported modules and the ISocketAdmin type
+const SocketAdmin = {
+    adminUser: user_2.default,
     categories: categories_1.default,
     settings: settings_1.default,
     tags: tags_1.default,
@@ -81,15 +81,16 @@ exports.SocketAdmin = {
     logs: logs_1.default,
     errors: errors_1.default,
     digest: digest_1.default,
-    cache: cache_1.default
+    cache: cache_1.default,
 };
-exports.SocketAdmin.before = (socket, method) => __awaiter(void 0, void 0, void 0, function* () {
+SocketAdmin.before = (socket, method) => __awaiter(void 0, void 0, void 0, function* () {
     const isAdmin = yield user_1.default.isAdministrator(socket.uid);
     if (isAdmin) {
         return;
     }
-    // Check admin privileges mapping (if not in mapping, deny access)
-    const privilegeSet = privileges_1.default.admin.socketMap.hasOwnProperty(method) ? privileges_1.default.admin.socketMap[method].split(';') : [];
+    const privilegeSet = privileges_1.default.admin.socketMap.hasOwnProperty(method)
+        ? privileges_1.default.admin.socketMap[method].split(';') // assert as string
+        : [];
     const hasPrivilege = (yield Promise.all(privilegeSet.map((privilege) => __awaiter(void 0, void 0, void 0, function* () { return privileges_1.default.admin.can(privilege, socket.uid); })))).some(Boolean);
     if (privilegeSet.length && hasPrivilege) {
         return;
@@ -97,7 +98,7 @@ exports.SocketAdmin.before = (socket, method) => __awaiter(void 0, void 0, void 
     winston_1.default.warn(`[socket.io] Call to admin method ( ${method} ) blocked (accessed by uid ${socket.uid})`);
     throw new Error('[[error:no-privileges]]');
 });
-exports.SocketAdmin.restart = function (socket) {
+SocketAdmin.restart = function (socket) {
     return __awaiter(this, void 0, void 0, function* () {
         yield logRestart(socket);
         meta_1.default.restart();
@@ -117,7 +118,7 @@ function logRestart(socket) {
         });
     });
 }
-exports.SocketAdmin.reload = function (socket) {
+SocketAdmin.reload = function (socket) {
     return __awaiter(this, void 0, void 0, function* () {
         yield require('../meta/build').buildAll();
         yield events_1.default.log({
@@ -129,29 +130,29 @@ exports.SocketAdmin.reload = function (socket) {
         meta_1.default.restart();
     });
 };
-exports.SocketAdmin.fireEvent = (socket, data, callback) => {
+SocketAdmin.fireEvent = (socket, data, callback) => {
     index_1.server.emit(data.name, data.payload || {});
     callback();
 };
-exports.SocketAdmin.deleteEvents = (socket, eids, callback) => {
+SocketAdmin.deleteEvents = (socket, eids, callback) => {
     events_1.default.deleteEvents(eids, callback);
 };
-exports.SocketAdmin.deleteAllEvents = (socket, data, callback) => {
+SocketAdmin.deleteAllEvents = (socket, data, callback) => {
     events_1.default.deleteAll(callback);
 };
-exports.SocketAdmin.getSearchDict = (socket) => __awaiter(void 0, void 0, void 0, function* () {
+SocketAdmin.getSearchDict = (socket) => __awaiter(void 0, void 0, void 0, function* () {
     const settings = yield user_1.default.getSettings(socket.uid);
     const lang = settings.userLang || meta_1.default.config.defaultLang || 'en-GB';
     return yield (0, search_1.getDictionary)(lang);
 });
-exports.SocketAdmin.deleteAllSessions = (socket, data, callback) => {
+SocketAdmin.deleteAllSessions = (socket, data, callback) => {
     user_1.default.auth.deleteAllSessions(callback);
 };
-exports.SocketAdmin.reloadAllSessions = (socket, data, callback) => {
+SocketAdmin.reloadAllSessions = (socket, data, callback) => {
     index_1.default.in(`uid_${socket.uid}`).emit('event:livereload');
     callback();
 };
-exports.SocketAdmin.getServerTime = (socket, data, callback) => {
+SocketAdmin.getServerTime = (socket, data, callback) => {
     const now = new Date();
     callback(null, {
         timestamp: now.getTime(),
@@ -159,4 +160,5 @@ exports.SocketAdmin.getServerTime = (socket, data, callback) => {
     });
 };
 const promisify_1 = __importDefault(require("../promisify"));
-(0, promisify_1.default)(exports.SocketAdmin);
+(0, promisify_1.default)(SocketAdmin);
+exports.default = SocketAdmin;
