@@ -1,121 +1,162 @@
-'use strict';
-
-const winston = require('winston');
-
-const meta = require('../meta');
-const user = require('../user');
-const events = require('../events');
-const db = require('../database');
-const privileges = require('../privileges');
-const websockets = require('./index');
-const index = require('./index');
-const getAdminSearchDict = require('../admin/search').getDictionary;
-
-const SocketAdmin = module.exports;
-SocketAdmin.user = require('./admin/user');
-SocketAdmin.categories = require('./admin/categories');
-SocketAdmin.settings = require('./admin/settings');
-SocketAdmin.tags = require('./admin/tags');
-SocketAdmin.rewards = require('./admin/rewards');
-SocketAdmin.navigation = require('./admin/navigation');
-SocketAdmin.rooms = require('./admin/rooms');
-SocketAdmin.social = require('./admin/social');
-SocketAdmin.themes = require('./admin/themes');
-SocketAdmin.plugins = require('./admin/plugins');
-SocketAdmin.widgets = require('./admin/widgets');
-SocketAdmin.config = require('./admin/config');
-SocketAdmin.settings = require('./admin/settings');
-SocketAdmin.email = require('./admin/email');
-SocketAdmin.analytics = require('./admin/analytics');
-SocketAdmin.logs = require('./admin/logs');
-SocketAdmin.errors = require('./admin/errors');
-SocketAdmin.digest = require('./admin/digest');
-SocketAdmin.cache = require('./admin/cache');
-
-SocketAdmin.before = async function (socket, method) {
-    const isAdmin = await user.isAdministrator(socket.uid);
+"use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.SocketAdmin = void 0;
+const winston_1 = __importDefault(require("winston"));
+const meta_1 = __importDefault(require("../meta"));
+const user_1 = __importDefault(require("../user"));
+const events_1 = __importDefault(require("../events"));
+const database_1 = __importDefault(require("../database"));
+const privileges_1 = __importDefault(require("../privileges"));
+const index_1 = __importStar(require("./index"));
+const search_1 = require("../admin/search");
+const categories_1 = __importDefault(require("./admin/categories"));
+const settings_1 = __importDefault(require("./admin/settings"));
+const tags_1 = __importDefault(require("./admin/tags"));
+const rewards_1 = __importDefault(require("./admin/rewards"));
+const navigation_1 = __importDefault(require("./admin/navigation"));
+const rooms_1 = __importDefault(require("./admin/rooms"));
+const social_1 = __importDefault(require("./admin/social"));
+const themes_1 = __importDefault(require("./admin/themes"));
+const plugins_1 = __importDefault(require("./admin/plugins"));
+const widgets_1 = __importDefault(require("./admin/widgets"));
+const config_1 = __importDefault(require("./admin/config"));
+// I noticed you imported 'settings' twice, so I'm removing one of them.
+const email_1 = __importDefault(require("./admin/email"));
+const analytics_1 = __importDefault(require("./admin/analytics"));
+const logs_1 = __importDefault(require("./admin/logs"));
+const errors_1 = __importDefault(require("./admin/errors"));
+const digest_1 = __importDefault(require("./admin/digest"));
+const cache_1 = __importDefault(require("./admin/cache"));
+// Define the SocketAdmin object using the imported modules
+exports.SocketAdmin = {
+    user: user_1.default,
+    categories: categories_1.default,
+    settings: settings_1.default,
+    tags: tags_1.default,
+    rewards: rewards_1.default,
+    navigation: navigation_1.default,
+    rooms: rooms_1.default,
+    social: social_1.default,
+    themes: themes_1.default,
+    plugins: plugins_1.default,
+    widgets: widgets_1.default,
+    config: config_1.default,
+    email: email_1.default,
+    analytics: analytics_1.default,
+    logs: logs_1.default,
+    errors: errors_1.default,
+    digest: digest_1.default,
+    cache: cache_1.default
+};
+exports.SocketAdmin.before = (socket, method) => __awaiter(void 0, void 0, void 0, function* () {
+    const isAdmin = yield user_1.default.isAdministrator(socket.uid);
     if (isAdmin) {
         return;
     }
-
     // Check admin privileges mapping (if not in mapping, deny access)
-    const privilegeSet = privileges.admin.socketMap.hasOwnProperty(method) ? privileges.admin.socketMap[method].split(';') : [];
-    const hasPrivilege = (await Promise.all(privilegeSet.map(
-        async privilege => privileges.admin.can(privilege, socket.uid)
-    ))).some(Boolean);
+    const privilegeSet = privileges_1.default.admin.socketMap.hasOwnProperty(method) ? privileges_1.default.admin.socketMap[method].split(';') : [];
+    const hasPrivilege = (yield Promise.all(privilegeSet.map((privilege) => __awaiter(void 0, void 0, void 0, function* () { return privileges_1.default.admin.can(privilege, socket.uid); })))).some(Boolean);
     if (privilegeSet.length && hasPrivilege) {
         return;
     }
-
-    winston.warn(`[socket.io] Call to admin method ( ${method} ) blocked (accessed by uid ${socket.uid})`);
+    winston_1.default.warn(`[socket.io] Call to admin method ( ${method} ) blocked (accessed by uid ${socket.uid})`);
     throw new Error('[[error:no-privileges]]');
-};
-
-SocketAdmin.restart = async function (socket) {
-    await logRestart(socket);
-    meta.restart();
-};
-
-async function logRestart(socket) {
-    await events.log({
-        type: 'restart',
-        uid: socket.uid,
-        ip: socket.ip,
+});
+exports.SocketAdmin.restart = function (socket) {
+    return __awaiter(this, void 0, void 0, function* () {
+        yield logRestart(socket);
+        meta_1.default.restart();
     });
-    await db.setObject('lastrestart', {
-        uid: socket.uid,
-        ip: socket.ip,
-        timestamp: Date.now(),
+};
+function logRestart(socket) {
+    return __awaiter(this, void 0, void 0, function* () {
+        yield events_1.default.log({
+            type: 'restart',
+            uid: socket.uid,
+            ip: socket.ip,
+        });
+        yield database_1.default.setObject('lastrestart', {
+            uid: socket.uid,
+            ip: socket.ip,
+            timestamp: Date.now(),
+        });
     });
 }
-
-SocketAdmin.reload = async function (socket) {
-    await require('../meta/build').buildAll();
-    await events.log({
-        type: 'build',
-        uid: socket.uid,
-        ip: socket.ip,
+exports.SocketAdmin.reload = function (socket) {
+    return __awaiter(this, void 0, void 0, function* () {
+        yield require('../meta/build').buildAll();
+        yield events_1.default.log({
+            type: 'build',
+            uid: socket.uid,
+            ip: socket.ip,
+        });
+        yield logRestart(socket);
+        meta_1.default.restart();
     });
-
-    await logRestart(socket);
-    meta.restart();
 };
-
-SocketAdmin.fireEvent = function (socket, data, callback) {
-    index.server.emit(data.name, data.payload || {});
+exports.SocketAdmin.fireEvent = (socket, data, callback) => {
+    index_1.server.emit(data.name, data.payload || {});
     callback();
 };
-
-SocketAdmin.deleteEvents = function (socket, eids, callback) {
-    events.deleteEvents(eids, callback);
+exports.SocketAdmin.deleteEvents = (socket, eids, callback) => {
+    events_1.default.deleteEvents(eids, callback);
 };
-
-SocketAdmin.deleteAllEvents = function (socket, data, callback) {
-    events.deleteAll(callback);
+exports.SocketAdmin.deleteAllEvents = (socket, data, callback) => {
+    events_1.default.deleteAll(callback);
 };
-
-SocketAdmin.getSearchDict = async function (socket) {
-    const settings = await user.getSettings(socket.uid);
-    const lang = settings.userLang || meta.config.defaultLang || 'en-GB';
-    return await getAdminSearchDict(lang);
+exports.SocketAdmin.getSearchDict = (socket) => __awaiter(void 0, void 0, void 0, function* () {
+    const settings = yield user_1.default.getSettings(socket.uid);
+    const lang = settings.userLang || meta_1.default.config.defaultLang || 'en-GB';
+    return yield (0, search_1.getDictionary)(lang);
+});
+exports.SocketAdmin.deleteAllSessions = (socket, data, callback) => {
+    user_1.default.auth.deleteAllSessions(callback);
 };
-
-SocketAdmin.deleteAllSessions = function (socket, data, callback) {
-    user.auth.deleteAllSessions(callback);
-};
-
-SocketAdmin.reloadAllSessions = function (socket, data, callback) {
-    websockets.in(`uid_${socket.uid}`).emit('event:livereload');
+exports.SocketAdmin.reloadAllSessions = (socket, data, callback) => {
+    index_1.default.in(`uid_${socket.uid}`).emit('event:livereload');
     callback();
 };
-
-SocketAdmin.getServerTime = function (socket, data, callback) {
+exports.SocketAdmin.getServerTime = (socket, data, callback) => {
     const now = new Date();
-
     callback(null, {
         timestamp: now.getTime(),
         offset: now.getTimezoneOffset(),
     });
 };
-
-require('../promisify')(SocketAdmin);
+const promisify_1 = __importDefault(require("../promisify"));
+(0, promisify_1.default)(exports.SocketAdmin);
