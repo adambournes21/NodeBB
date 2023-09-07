@@ -7,6 +7,8 @@ import privileges from '../privileges';
 import websockets, { server as websocketServer } from './index';
 import { getDictionary as getAdminSearchDict } from '../admin/search';
 
+import { buildAll } from '../meta/build';
+
 // Convert the CommonJS imports to ES6 imports
 import adminUser from './admin/user';
 import categories from './admin/categories';
@@ -87,18 +89,30 @@ const SocketAdmin: ISocketAdmin = {
 interface ISocket {
     uid: number;
     ip: string;
-    [key: string]: any;  // Use this line to allow additional properties, but try to avoid `any` where possible.
+    [key: string]: any;// Use this line to allow additional properties, but try to avoid `any` where possible.
+}
+
+interface WebsocketServer {
+    emit(eventName: string, payload: any): void;
+}
+
+interface UserSettings {
+    userLang?: string;
+}
+
+interface MetaConfig {
+    defaultLang?: string;
 }
 
 SocketAdmin.before = async (socket: ISocket, method: string) => {
-    const isAdmin = await user.isAdministrator(socket.uid);
+    const isAdmin = await user.isAdministrator(socket.uid) as boolean;
     if (isAdmin) {
         return;
     }
 
-    const privilegeSet = privileges.admin.socketMap.hasOwnProperty(method) 
-        ? (privileges.admin.socketMap[method] as string).split(';')  // assert as string
-        : [];
+    const privilegeSet = privileges.admin.socketMap.hasOwnProperty(method) ?
+        (privileges.admin.socketMap[method] as string).split(';') :// assert as string
+        [];
 
     const hasPrivilege = (await Promise.all(privilegeSet.map(
         async privilege => privileges.admin.can(privilege, socket.uid)
@@ -112,26 +126,27 @@ SocketAdmin.before = async (socket: ISocket, method: string) => {
     throw new Error('[[error:no-privileges]]');
 };
 
-SocketAdmin.restart = async function (socket: ISocket) {
-    await logRestart(socket);
-    meta.restart();
-};
-
+// Move logRestart function to the top to address the "use before define" error
 async function logRestart(socket: ISocket) {
     await events.log({
         type: 'restart',
         uid: socket.uid,
         ip: socket.ip,
     });
-    await db.setObject('lastrestart', {
+    await (db as { setObject: (key: string, value: any) => Promise<void> }).setObject('lastrestart', {
         uid: socket.uid,
         ip: socket.ip,
         timestamp: Date.now(),
     });
 }
 
-SocketAdmin.reload = async function (socket: any) {
-    await require('../meta/build').buildAll();
+SocketAdmin.restart = async function (socket: ISocket) {
+    await logRestart(socket);
+    meta.restart();
+};
+
+SocketAdmin.reload = async function (socket: ISocket) {
+    await buildAll();
     await events.log({
         type: 'build',
         uid: socket.uid,
@@ -142,22 +157,36 @@ SocketAdmin.reload = async function (socket: any) {
     meta.restart();
 };
 
-SocketAdmin.fireEvent = (socket: any, data: {name: string, payload?: any}, callback: Function) => {
-    websocketServer.emit(data.name, data.payload || {});
+SocketAdmin.fireEvent = (socket: any, data: { name: string, payload?: any }, callback: () => void) => {
+    (websocketServer as WebsocketServer).emit(data.name, data.payload || {});
     callback();
 };
 
-SocketAdmin.deleteEvents = (socket: any, eids: number[], callback: Function) => {
-    events.deleteEvents(eids, callback);
+type CallbackWithError = (err?: any) => void;
+
+SocketAdmin.deleteEvents = (socket: unknown, eids: number[], callback: CallbackWithError) => {
+    events.deleteEvents(eids, (err: any) => {
+        if (err) {
+            // Handle the error or pass it to the callback
+            return callback(err);
+        }
+        callback();
+    });
 };
 
-SocketAdmin.deleteAllEvents = (socket: any, data: any, callback: Function) => {
-    events.deleteAll(callback);
+SocketAdmin.deleteAllEvents = (socket: unknown, data: unknown, callback: CallbackWithError) => {
+    events.deleteAll((err: any) => {
+        if (err) {
+            // Handle the error or pass it to the callback
+            return callback(err);
+        }
+        callback();
+    });
 };
 
-SocketAdmin.getSearchDict = async (socket: any) => {
-    const settings = await user.getSettings(socket.uid);
-    const lang = settings.userLang || meta.config.defaultLang || 'en-GB';
+SocketAdmin.getSearchDict = async (socket: unknown) => {
+    const settings = (await user.getSettings((socket as { uid: number }).uid)) as UserSettings;
+    const lang = settings.userLang || (meta.config as MetaConfig).defaultLang || 'en-GB';
     return await getAdminSearchDict(lang);
 };
 

@@ -43,6 +43,7 @@ const database_1 = __importDefault(require("../database"));
 const privileges_1 = __importDefault(require("../privileges"));
 const index_1 = __importStar(require("./index"));
 const search_1 = require("../admin/search");
+const build_1 = require("../meta/build");
 // Convert the CommonJS imports to ES6 imports
 const user_2 = __importDefault(require("./admin/user"));
 const categories_1 = __importDefault(require("./admin/categories"));
@@ -88,9 +89,9 @@ SocketAdmin.before = (socket, method) => __awaiter(void 0, void 0, void 0, funct
     if (isAdmin) {
         return;
     }
-    const privilegeSet = privileges_1.default.admin.socketMap.hasOwnProperty(method)
-        ? privileges_1.default.admin.socketMap[method].split(';') // assert as string
-        : [];
+    const privilegeSet = privileges_1.default.admin.socketMap.hasOwnProperty(method) ?
+        privileges_1.default.admin.socketMap[method].split(';') : // assert as string
+        [];
     const hasPrivilege = (yield Promise.all(privilegeSet.map((privilege) => __awaiter(void 0, void 0, void 0, function* () { return privileges_1.default.admin.can(privilege, socket.uid); })))).some(Boolean);
     if (privilegeSet.length && hasPrivilege) {
         return;
@@ -98,12 +99,7 @@ SocketAdmin.before = (socket, method) => __awaiter(void 0, void 0, void 0, funct
     winston_1.default.warn(`[socket.io] Call to admin method ( ${method} ) blocked (accessed by uid ${socket.uid})`);
     throw new Error('[[error:no-privileges]]');
 });
-SocketAdmin.restart = function (socket) {
-    return __awaiter(this, void 0, void 0, function* () {
-        yield logRestart(socket);
-        meta_1.default.restart();
-    });
-};
+// Move logRestart function to the top to address the "use before define" error
 function logRestart(socket) {
     return __awaiter(this, void 0, void 0, function* () {
         yield events_1.default.log({
@@ -118,9 +114,15 @@ function logRestart(socket) {
         });
     });
 }
+SocketAdmin.restart = function (socket) {
+    return __awaiter(this, void 0, void 0, function* () {
+        yield logRestart(socket);
+        meta_1.default.restart();
+    });
+};
 SocketAdmin.reload = function (socket) {
     return __awaiter(this, void 0, void 0, function* () {
-        yield require('../meta/build').buildAll();
+        yield (0, build_1.buildAll)();
         yield events_1.default.log({
             type: 'build',
             uid: socket.uid,
@@ -135,13 +137,25 @@ SocketAdmin.fireEvent = (socket, data, callback) => {
     callback();
 };
 SocketAdmin.deleteEvents = (socket, eids, callback) => {
-    events_1.default.deleteEvents(eids, callback);
+    events_1.default.deleteEvents(eids, (err) => {
+        if (err) {
+            // Handle the error or pass it to the callback
+            return callback(err);
+        }
+        callback();
+    });
 };
 SocketAdmin.deleteAllEvents = (socket, data, callback) => {
-    events_1.default.deleteAll(callback);
+    events_1.default.deleteAll((err) => {
+        if (err) {
+            // Handle the error or pass it to the callback
+            return callback(err);
+        }
+        callback();
+    });
 };
 SocketAdmin.getSearchDict = (socket) => __awaiter(void 0, void 0, void 0, function* () {
-    const settings = yield user_1.default.getSettings(socket.uid);
+    const settings = (yield user_1.default.getSettings(socket.uid));
     const lang = settings.userLang || meta_1.default.config.defaultLang || 'en-GB';
     return yield (0, search_1.getDictionary)(lang);
 });
