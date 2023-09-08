@@ -32,40 +32,38 @@ import cache from './admin/cache';
 
 // Define the ISocketAdmin interface
 interface ISocketAdmin {
-    adminUser?: any;
-    categories?: any;
-    settings?: any;
-    tags?: any;
-    rewards?: any;
-    navigation?: any;
-    rooms?: any;
-    social?: any;
-    themes?: any;
-    plugins?: any;
-    widgets?: any;
-    config?: any;
-    email?: any;
-    analytics?: any;
-    logs?: any;
-    errors?: any;
-    digest?: any;
-    cache?: any;
+    adminUser?: unknown;
+    categories?: unknown;
+    settings?: unknown;
+    tags?: unknown;
+    rewards?: unknown;
+    navigation?: unknown;
+    rooms?: unknown;
+    social?: unknown;
+    themes?: unknown;
+    plugins?: unknown;
+    widgets?: unknown;
+    config?: unknown;
+    email?: unknown;
+    analytics?: unknown;
+    logs?: unknown;
+    errors?: unknown;
+    digest?: unknown;
+    cache?: unknown;
 
-    before?(socket: any, method: string): Promise<void>;
-    restart?(socket: any): Promise<void>;
+    before?(socket: unknown, method: string): Promise<void>;
+    restart?(socket: unknown): Promise<void>;
 
-    reload?(socket: any): Promise<void>;
-    fireEvent?(socket: any, data: { name: string, payload?: any }, callback: (...args: any[]) => any): void;
-    deleteEvents?(socket: any, eids: number[], callback: (err: Error | null, result?: any) => void): void;
-    deleteAllEvents?(socket: any, data: any, callback: (err: Error | null, result?: any) => void): void;
-    getSearchDict?(socket: any): Promise<any>;
-    deleteAllSessions?(socket: any, data: any, callback: (err: Error | null, result?: any) => void): void;
-    reloadAllSessions?(socket: any, data: any, callback: (err: Error | null, result?: any) => void): void;
-    getServerTime?(socket: any, data: any, callback: (err: Error | null, result?: any) => void): void;
-    // ... Add other methods here if needed
+    reload?(socket: unknown): Promise<void>;
+    fireEvent?(socket: unknown, data: IData, callback: ICallback): void;
+    deleteEvents?(socket: unknown, eids: number[], callback: ICallback): void;
+    deleteAllEvents?(socket: unknown, data: unknown, callback: ICallback): void;
+    getSearchDict?(socket: unknown): Promise<unknown>;
+    deleteAllSessions?(socket: unknown, data: unknown, callback: ICallback): void;
+    reloadAllSessions?(socket: unknown, data: unknown, callback: ICallback): void;
+    getServerTime?(socket: unknown, data: unknown, callback: ICallback): void;
 }
 
-// Define the SocketAdmin object using the imported modules and the ISocketAdmin type
 const SocketAdmin: ISocketAdmin = {
     adminUser,
     categories,
@@ -90,11 +88,18 @@ const SocketAdmin: ISocketAdmin = {
 interface ISocket {
     uid: number;
     ip: string;
-    [key: string]: any;// Use this line to allow additional properties, but try to avoid `any` where possible.
+    // If you truly expect any property with a string key, keep the line below.
+    // But if you can, specify all the expected properties.
+    [key: string]: unknown; // Using `unknown` instead of `any` can sometimes be safer.
+}
+
+interface EventPayload {
+    // define the shape of the expected payload here
+    [key: string]: unknown;
 }
 
 interface WebsocketServer {
-    emit(eventName: string, payload: any): void;
+    emit(eventName: string, payload: EventPayload): void;
 }
 
 interface UserSettings {
@@ -119,6 +124,16 @@ interface User {
     isAdministrator(uid: number): Promise<boolean>;
     getSettings(uid: number): Promise<UserSettings>;
 }
+
+interface IData {
+    name: string;
+    payload?: unknown;
+}
+
+interface ICallback {
+    (err: Error | null, result?: unknown): void;
+}
+
 
 declare const user: User;
 
@@ -145,14 +160,13 @@ SocketAdmin.before = async (socket: ISocket, method: string) => {
     throw new Error('[[error:no-privileges]]');
 };
 
-// Move logRestart function to the top to address the "use before define" error
 async function logRestart(socket: ISocket) {
     await events.log({
         type: 'restart',
         uid: socket.uid,
         ip: socket.ip,
     });
-    await (db as { setObject: (key: string, value: any) => Promise<void> }).setObject('lastrestart', {
+    await (db as { setObject: (key: string, value: unknown) => Promise<void> }).setObject('lastrestart', {
         uid: socket.uid,
         ip: socket.ip,
         timestamp: Date.now(),
@@ -176,32 +190,30 @@ SocketAdmin.reload = async function (socket: ISocket) {
     meta.restart();
 };
 
-SocketAdmin.fireEvent = (socket: any, data: { name: string, payload?: any }, callback: () => void) => {
+SocketAdmin.fireEvent = (socket: unknown, data: { name: string, payload?: EventPayload }, callback: ICallback) => {
     (websocketServer as WebsocketServer).emit(data.name, data.payload || {});
-    callback();
+    callback(null);
 };
 
-type CallbackWithError = (err?: any) => void;
-
-SocketAdmin.deleteEvents = (socket: unknown, eids: number[], callback: CallbackWithError) => {
+SocketAdmin.deleteEvents = (socket: unknown, eids: number[], callback: ICallback) => {
     // Assuming events.deleteEvents returns a promise
     events.deleteEvents(eids)
         .then(() => {
-            callback(); // Successfully deleted, so invoke the callback with no error
+            callback(null); // Successfully deleted, so invoke the callback with no error
         })
-        .catch((err: any) => {
+        .catch((err: Error) => {
             callback(err); // There was an error, pass it to the callback
         });
 };
 
-SocketAdmin.deleteAllEvents = (socket: unknown, data: unknown, callback: CallbackWithError) => {
-    // Assuming events.deleteAll returns a promise
+SocketAdmin.deleteAllEvents = (socket: unknown, data: unknown, callback: ICallback) => {
     events.deleteAll()
         .then(() => {
-            callback(); // Successfully deleted, so invoke the callback with no error
+            callback(null);
         })
-        .catch((err: any) => {
-            callback(err); // There was an error, pass it to the callback
+        .catch((err: Error) => {
+            console.error(err);
+            callback(err);
         });
 };
 
@@ -242,4 +254,4 @@ promisify(SocketAdmin);
 
 export default SocketAdmin;
 
-//  source of some of these changes: chatGPT
+// source of some of these changes: chatGPT

@@ -63,7 +63,6 @@ const logs_1 = __importDefault(require("./admin/logs"));
 const errors_1 = __importDefault(require("./admin/errors"));
 const digest_1 = __importDefault(require("./admin/digest"));
 const cache_1 = __importDefault(require("./admin/cache"));
-// Define the SocketAdmin object using the imported modules and the ISocketAdmin type
 const SocketAdmin = {
     adminUser: user_1.default,
     categories: categories_1.default,
@@ -99,7 +98,6 @@ SocketAdmin.before = (socket, method) => __awaiter(void 0, void 0, void 0, funct
     winston_1.default.warn(`[socket.io] Call to admin method ( ${method} ) blocked (accessed by uid ${socket.uid})`);
     throw new Error('[[error:no-privileges]]');
 });
-// Move logRestart function to the top to address the "use before define" error
 function logRestart(socket) {
     return __awaiter(this, void 0, void 0, function* () {
         yield events_1.default.log({
@@ -134,26 +132,26 @@ SocketAdmin.reload = function (socket) {
 };
 SocketAdmin.fireEvent = (socket, data, callback) => {
     index_1.server.emit(data.name, data.payload || {});
-    callback();
+    callback(null);
 };
 SocketAdmin.deleteEvents = (socket, eids, callback) => {
     // Assuming events.deleteEvents returns a promise
     events_1.default.deleteEvents(eids)
         .then(() => {
-        callback(); // Successfully deleted, so invoke the callback with no error
+        callback(null); // Successfully deleted, so invoke the callback with no error
     })
         .catch((err) => {
         callback(err); // There was an error, pass it to the callback
     });
 };
 SocketAdmin.deleteAllEvents = (socket, data, callback) => {
-    // Assuming events.deleteAll returns a promise
     events_1.default.deleteAll()
         .then(() => {
-        callback(); // Successfully deleted, so invoke the callback with no error
+        callback(null);
     })
         .catch((err) => {
-        callback(err); // There was an error, pass it to the callback
+        console.error(err);
+        callback(err);
     });
 };
 SocketAdmin.getSearchDict = (socket) => __awaiter(void 0, void 0, void 0, function* () {
@@ -183,4 +181,4 @@ SocketAdmin.getServerTime = (socket, data, callback) => {
 };
 (0, promisify_1.default)(SocketAdmin);
 exports.default = SocketAdmin;
-//  source of some of these changes: chatGPT
+// source of some of these changes: chatGPT
